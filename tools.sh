@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# 颜色 --------------------------------------------------------------------------------------------------------
+black=$(tput setaf 0)   ; red=$(tput setaf 1)          ; green=$(tput setaf 2)   ; yellow=$(tput setaf 3);  bold=$(tput bold)
+blue=$(tput setaf 4)    ; magenta=$(tput setaf 5)      ; cyan=$(tput setaf 6)    ; white=$(tput setaf 7) ;  normal=$(tput sgr0)
+on_black=$(tput setab 0); on_red=$(tput setab 1)       ; on_green=$(tput setab 2); on_yellow=$(tput setab 3)
+on_blue=$(tput setab 4) ; on_magenta=$(tput setab 5)   ; on_cyan=$(tput setab 6) ; on_white=$(tput setab 7)
+shanshuo=$(tput blink)  ; wuguangbiao=$(tput civis)    ; guangbiao=$(tput cnorm) ; jiacu=${normal}${bold}
+underline=$(tput smul)  ; reset_underline=$(tput rmul) ; dim=$(tput dim)
+standout=$(tput smso)   ; reset_standout=$(tput rmso)  ; title=${standout}
+baihuangse=${white}${on_yellow}; bailanse=${white}${on_blue} ; bailvse=${white}${on_green}
+baiqingse=${white}${on_cyan}   ; baihongse=${white}${on_red} ; baizise=${white}${on_magenta}
+heibaise=${black}${on_white}   ; heihuangse=${on_yellow}${black}
+CW="${bold}${baihongse} ERROR ${jiacu}";ZY="${baihongse}${bold} ATTENTION ${jiacu}";JG="${baihongse}${bold} WARNING ${jiacu}"
+
 function find_os(){
 	echo "正在检索系统版本"
 	sleep 1
@@ -29,6 +42,8 @@ function find_os(){
 
 }
 
+
+
 function find_hardware_information(){
     cpu_model=`cat /proc/cpuinfo | grep "model name" | uniq | awk -F : '{print $2}'`
     cpu_core_num=`cat /proc/cpuinfo | grep "cpu cores" | uniq | awk -F : '{print $2}'`
@@ -44,6 +59,22 @@ function find_hardware_information(){
 	echo "你的CPU架构为$marchines"
 }
 
+find_country(){
+	apt update && apt install -y curl
+	echo "正在获取国家信息"
+	country=$(curl -sSL https://api.myip.la/en?json | awk -F \" '{print $14}')
+	echo $country
+	if [ -z $country ];then
+		echo "API获取失败"
+		exit 10
+	elif [ $country == "CN" ];then
+		echo "你当前的网络位于中国大陆"
+		ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+	else 
+		echo "你当前的网络位于$(curl -sSL https://api.myip.la/cn?json | awk -F \" '{print $18}')"
+	fi
+}
+
 function generate_report(){
 	#生成报告文件
 	cat > ~/.latezly_tools_report.txt <<EOF
@@ -52,125 +83,35 @@ EOF
 }
 
 function select_source(){
-    #选择洲
-    function _mirrors_option_continent(){
-        mirrors_option_continent=$(whiptail --title "Latezly Toolbox" --radiolist "选择洲  1/3（页）  空格选择，回车确认" 15 60 8 \
-        "$1" "$2" ON \
-        "$3" "$4" OFF \
-        "$5" "$6" OFF \
-        3>&1 1>&2 2>&3)
-    }
-        
-    #选择国家
-    function _mirrors_option_country(){
-        mirrors_option_country=$(whiptail --title "Latezly Toolbox" --radiolist "选择国家  2/3（页）  空格选择，回车确认" 15 60 8 \
-        "$1" "$2" ON \
-        "$3" "$4" OFF \
-        "$5" "$6" OFF \
-        3>&1 1>&2 2>&3)
-    }
-    #选择源
-    function _mirrors_option(){
-        mirrors_option=$(whiptail --title "Latezly Toolbox" --radiolist "选择源  3/3（页）  空格选择，回车确认" 15 60 8 \
-        "$1" "$2" ON \
-        "$3" "$4" OFF \
-        "$5" "$6" OFF \
-        "$7" "$8" OFF \
-        3>&1 1>&2 2>&3)
-    }
-    
-    _mirrors_option_continent "1" "亚洲（中国大陆  日本  韩国）"    "2" "美洲（美国  加拿大）"    "3" "欧洲（德国  法国  英国）"
-    case $mirrors_option_continent in
-    1)
-        #亚洲
-        _mirrors_option_country "1" "中国大陆（阿里源  163源  清华源  官方源）"    "2" "日本（官方源）"    "3" "韩国（官方源）"
-        case $mirrors_option_country in
-        1)
-            #中国
-            _mirrors_option "1" "阿里源(mirrors.aliyun.com)"    "2" "163源(mirrors.163.com)"    "3" "清华源(mirrors.tsinghua.edu.cn)"    "4" "官方源(ftp.cn.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="mirrors.aliyun.com"
-            ;;
-            2) mirrors_source_url="mirrors.163.com"
-            ;;
-            3) mirrors_source_url="mirrors.tsinghua.edu.cn"
-            ;;
-            4) mirrors_source_url="ftp.cn.debian.org"
-            ;;
-            esac
-        ;;
-        2)
-            #日本
-            _mirrors_option "1" "官方源(ftp.jp.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.jp.debian.org"
-            ;;
-            esac
-        ;;
-        3)
-            #韩国
-            _mirrors_option "1" "官方源(ftp.kr.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.kr.debian.org"
-            ;;
-            esac
-        ;;
-        esac
+    mirrors_option=$(whiptail --title "Latezly Toolbox" --radiolist "选择源  空格选择，回车确认" 15 60 8 \
+    "1" "中国（mirrors.163.com）" ON \
+    "2" "日本（ftp.jp.debian.org）" OFF \
+    "3" "韩国（ftp.kr.debian.org）" OFF \
+    "4" "美国（ftp.us.debian.org）" OFF \
+    "5" "德国（ftp.de.debian.org）" OFF \
+    "6" "英国（ftp.uk.debian.org）" OFF \
+    "7" "法国（ftp.fr.debian.org）" OFF \
+    "8" "俄罗斯（ftp.ru.debian.org）" OFF \
+    3>&1 1>&2 2>&3)
+    case $mirrors_option in
+    1)mirrors_source_url="mirrors.163.com"
     ;;
-    2)
-        #美洲
-        _mirrors_option_country "1" "美国(官方源)"    "2" "加拿大（官方源）"
-        case $mirrors_option_country in
-        1)
-            #美国
-            _mirrors_option "1" "官方源(ftp.us.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.us.debian.org"
-            ;;
-            esac
-        ;;
-        2)
-            #加拿大
-            _mirrors_option "1" "官方源(ftp.ca.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.ca.debian.org"
-            ;;
-            esac
-        ;;
-        esac
+    2)mirrors_source_url="ftp.jp.debian.org"
     ;;
-    3)
-        #欧洲
-        _mirrors_option_country "1" "德国（官方源）"    "2" "法国（官方源）"    "3" "英国（官方源）"
-        case $mirrors_option_country in
-        1)
-            #德国
-            _mirrors_option "1" "官方源(ftp.de.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.de.debian.org"
-            ;;
-            esac
-        ;;
-        2)
-            #法国
-            _mirrors_option "1" "官方源(ftp.fr.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.fr.debian.org"
-            ;;
-            esac
-        ;;
-        3)
-            #英国
-            _mirrors_option "1" "官方源(ftp.uk.debian.org)"
-            case $mirrors_option in
-            1) mirrors_source_url="ftp.uk.debian.org"
-            ;;
-            esac
-        ;;
-        esac
+    3)mirrors_source_url="ftp.kr.debian.org"
+    ;;
+    4)mirrors_source_url="ftp.us.debian.org"
+    ;;
+    5)mirrors_source_url="ftp.de.debian.org"
+    ;;
+    6)mirrors_source_url="ftp.uk.debian.org"
+    ;;
+    7)mirrors_source_url="ftp.fr.debian.org"
+    ;;
+    8)mirrors_source_url="ftp.ru.debian.org"
     ;;
     esac
-    echo "你选择的源是："$mirrors_source_url
+    echo "你选择的源是"$mirrors_source_url
 }
 
 function change_source(){
@@ -200,10 +141,10 @@ EOF
 # Main
 function main(){
 OPTION=$(whiptail --title "Latezly Toolbox" --menu "" 15 60 8 \
-	"1" "检测系统" \
-	"2" "系统设置" \
-	"3" "安装应用" \
-	"4" "管理磁盘" \
+	"1" "检测系统  【 发行版、系统、版本号、架构、网络、磁盘 】" \
+	"2" "系统设置  【 换源、时区、语言 】" \
+	"3" "安装应用  【 基础环境、编译环境、虚拟化环境 】" \
+	"4" "管理磁盘  【 新增分区、修改分区、删除分区 】" \
 	"5" "未定义"  3>&1 1>&2 2>&3)
 exitstatus=$?
 
@@ -239,4 +180,4 @@ else
     exit 1
 fi
 }
-select_source
+echo $blue"123"
